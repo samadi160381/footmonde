@@ -153,7 +153,7 @@
     border-radius:2px;
   }
 
-  .headerright{ display:flex; align-items:center; gap:14px; }
+  .headerright{ display:flex; align-items:center; gap:14px; position:relative; }
   .search{
     display:flex; align-items:center; gap:8px;
     background:var(--surface);
@@ -163,7 +163,55 @@
     color:var(--muted);
     font-size:13.5px;
     width:230px;
+    position:relative;
   }
+  .search input{
+    background:transparent; border:none; outline:none;
+    color:var(--text); font-size:13.5px; font-family:'Inter',sans-serif;
+    width:100%;
+  }
+  .search input::placeholder{ color:var(--muted); }
+  .search-results{
+    position:absolute; top:calc(100% + 8px); left:0; right:0;
+    background:var(--surface-2); border:1px solid var(--line); border-radius:10px;
+    max-height:340px; overflow-y:auto; z-index:50;
+    box-shadow:0 12px 30px rgba(0,0,0,0.4);
+    display:none;
+  }
+  .search-results.show{ display:block; }
+  .search-result-row{
+    padding:10px 14px; font-size:13px; cursor:pointer;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    border-bottom:1px solid var(--line);
+  }
+  .search-result-row:last-child{ border-bottom:none; }
+  .search-result-row:hover{ background:var(--surface); }
+  .search-result-row .sr-teams{ color:var(--text); font-weight:500; }
+  .search-result-row .sr-comp{ color:var(--muted); font-size:11.5px; }
+  .search-empty{ padding:14px; font-size:13px; color:var(--muted); text-align:center; }
+  .settings-panel{
+    position:absolute; top:calc(100% + 10px); right:0;
+    background:var(--surface-2); border:1px solid var(--line); border-radius:12px;
+    width:240px; z-index:50; box-shadow:0 12px 30px rgba(0,0,0,0.4);
+    display:none; padding:8px;
+  }
+  .settings-panel.show{ display:block; }
+  .settings-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 10px; font-size:13px; border-radius:8px;
+  }
+  .settings-row:hover{ background:var(--surface); }
+  .settings-title{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:8px 10px 2px; }
+  .toggle{
+    width:34px; height:20px; border-radius:20px; background:var(--line);
+    position:relative; cursor:pointer; flex-shrink:0; transition:.15s;
+  }
+  .toggle.on{ background:var(--pitch); }
+  .toggle::after{
+    content:""; position:absolute; top:2px; left:2px; width:16px; height:16px;
+    border-radius:50%; background:#fff; transition:.15s;
+  }
+  .toggle.on::after{ left:16px; }
   .iconbtn{
     width:36px; height:36px; border-radius:9px;
     background:var(--surface);
@@ -171,6 +219,7 @@
     display:flex; align-items:center; justify-content:center;
     color:var(--muted);
     flex-shrink:0;
+    cursor:pointer;
   }
   .avatar{
     width:36px; height:36px; border-radius:50%;
@@ -512,9 +561,20 @@
   </nav>
   <div class="headerright">
     <div class="search">
-      <span>&#128269;</span> Search matches, teams…
+      <span>&#128269;</span>
+      <input type="text" id="searchInput" placeholder="Search matches, teams…" autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
     </div>
-    <div class="iconbtn">&#9881;</div>
+    <div class="iconbtn" id="settingsBtn">&#9881;</div>
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-title">Display</div>
+      <div class="settings-row"><span>Show scores in Overview</span><div class="toggle on" data-setting="showScores"></div></div>
+      <div class="settings-row"><span>Auto-refresh live data</span><div class="toggle on" data-setting="autoRefresh"></div></div>
+      <div class="settings-title">Notifications</div>
+      <div class="settings-row"><span>Goal alerts for favorites</span><div class="toggle" data-setting="goalAlerts"></div></div>
+      <div class="settings-title">Data</div>
+      <div class="settings-row" id="clearFavoritesBtn" style="cursor:pointer;"><span>Clear all favorites</span><span style="color:var(--live);">&#128465;</span></div>
+    </div>
     <div class="avatar">MG</div>
   </div>
 </header>
@@ -805,6 +865,7 @@
     {sport:'basketball', league:'nba',            label:'NBA',              crestA:'#123a2b', crestB:'#3a2b12', color:'#F5A623'},
     {sport:'baseball',   league:'mlb',             label:'MLB',             crestA:'#2b1c3a', crestB:'#123030', color:'#FF4D5E'},
     {sport:'hockey',     league:'nhl',            label:'NHL',              crestA:'#3a3a12', crestB:'#122a3a', color:'#B98CFF'},
+    {sport:'soccer',     league:'usa.usl.l2',     label:'USL League Two',   crestA:'#1c2b4a', crestB:'#3a1414', color:'#F5A623'},
   ];
 
   // Renders the "Live Now" sidebar from real league data. counts = {label: liveCount}
@@ -1504,8 +1565,86 @@
     showView('detail');
   }
 
+  // ---- Search ----
+  const searchInput = document.getElementById('searchInput');
+  const searchResults = document.getElementById('searchResults');
+  function runSearch(q){
+    q = q.trim().toLowerCase();
+    if(!q){ searchResults.classList.remove('show'); searchResults.innerHTML=''; return; }
+    const pool = window.allRawEvents || [];
+    const matches = pool.filter(e=>
+      e.a.toLowerCase().includes(q) || e.b.toLowerCase().includes(q) || e.league.toLowerCase().includes(q)
+    ).slice(0, 12);
+    if(!matches.length){
+      searchResults.innerHTML = pool.length
+        ? `<div class="search-empty">No matches or teams found for "${q}"</div>`
+        : `<div class="search-empty">Live data hasn't loaded yet — try again in a moment</div>`;
+    } else {
+      searchResults.innerHTML = matches.map((e,i)=>`<div class="search-result-row" data-idx="${i}">
+        <div><div class="sr-teams">${e.a} vs ${e.b}</div><div class="sr-comp">${e.league}</div></div>
+        <div class="sr-comp">${e.state==='in' ? '&#9679; ' + e.clock : e.state==='pre' ? fmtTime(e.date) : 'Final'}</div>
+      </div>`).join('');
+      searchResults.querySelectorAll('.search-result-row').forEach(row=>{
+        row.addEventListener('click', ()=>{
+          const e = matches[+row.dataset.idx];
+          searchResults.classList.remove('show');
+          searchInput.value = '';
+          openDetail({
+            a:e.a, b:e.b, sa:e.sa, sb:e.sb, comp:e.league,
+            sub: e.state==='in' ? 'Live now' : e.state==='pre' ? 'Scheduled' : 'Final',
+            min: e.state==='in' ? e.clock : fmtTime(e.date), cls:'',
+            crestA:e.crestA, crestB:e.crestB, logoA:e.logoA, logoB:e.logoB,
+            state:e.state, date:e.date, venue:e.venue, broadcast:e.broadcast,
+          });
+        });
+      });
+    }
+    searchResults.classList.add('show');
+  }
+  searchInput.addEventListener('input', ()=> runSearch(searchInput.value));
+  searchInput.addEventListener('focus', ()=> { if(searchInput.value) runSearch(searchInput.value); });
+  document.addEventListener('click', (ev)=>{
+    if(!ev.target.closest('.search')) searchResults.classList.remove('show');
+  });
+
+  // ---- Settings panel ----
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsPanel = document.getElementById('settingsPanel');
+  settingsBtn.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    settingsPanel.classList.toggle('show');
+  });
+  document.addEventListener('click', (ev)=>{
+    if(!ev.target.closest('.settings-panel') && !ev.target.closest('#settingsBtn')) settingsPanel.classList.remove('show');
+  });
+  let autoRefreshTimer = null;
+  function startAutoRefresh(){
+    if(autoRefreshTimer) clearInterval(autoRefreshTimer);
+    autoRefreshTimer = setInterval(loadLiveScores, 60000);
+  }
+  settingsPanel.querySelectorAll('.toggle').forEach(t=>{
+    t.addEventListener('click', ()=>{
+      t.classList.toggle('on');
+      const key = t.dataset.setting;
+      if(key === 'autoRefresh'){
+        if(t.classList.contains('on')) startAutoRefresh();
+        else if(autoRefreshTimer) clearInterval(autoRefreshTimer);
+      }
+      if(key === 'showScores'){
+        document.getElementById('heroCard').style.display = t.classList.contains('on') ? '' : 'none';
+      }
+    });
+  });
+  document.getElementById('clearFavoritesBtn').addEventListener('click', ()=>{
+    if(confirm('Clear all favorites? This cannot be undone.')){
+      saveFavorites([]);
+      if(document.getElementById('viewFavorites').style.display !== 'none') renderFavoritesView();
+      settingsPanel.classList.remove('show');
+    }
+  });
+
   loadLiveScores();
-  setInterval(loadLiveScores, 60000); // refresh every 60s
+  startAutoRefresh();
 </script>
 </body>
 </html>
