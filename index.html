@@ -449,13 +449,16 @@
   .detail-row:first-child{ border-top:none; }
   .detail-row .k{ color:var(--muted); }
   .detail-row .v{ font-weight:500; text-align:right; }
-  .detail-tiles{ display:flex; flex-wrap:wrap; gap:10px; }
-  .detail-tile{
-    background:var(--surface); border:1px solid var(--line); border-radius:10px;
-    padding:12px 16px; flex:1 1 150px; min-width:130px;
+  .detail-line{
+    display:flex; align-items:center; flex-wrap:nowrap;
+    overflow-x:auto; white-space:nowrap; font-size:13.5px; padding:2px 0;
+    scrollbar-width:none;
   }
-  .detail-tile .k{ color:var(--muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; }
-  .detail-tile .v{ font-weight:600; font-size:14px; }
+  .detail-line::-webkit-scrollbar{ display:none; }
+  .detail-line .item{ display:flex; align-items:baseline; gap:6px; padding-right:16px; margin-right:16px; border-right:1px solid var(--line); flex-shrink:0; }
+  .detail-line .item:last-child{ border-right:none; margin-right:0; padding-right:0; }
+  .detail-line .k{ color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+  .detail-line .v{ font-weight:600; }
   .h2h-tiles{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
   .h2h-tile{
     background:var(--surface); border:1px solid var(--line); border-radius:10px;
@@ -1575,23 +1578,23 @@
     let tiles = '';
     if(item.date && !isDemo){
       const d = new Date(item.date);
-      tiles += `<div class="detail-tile"><div class="k">Date</div><div class="v">${d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})}</div></div>`;
-      tiles += `<div class="detail-tile"><div class="k">Kickoff</div><div class="v">${d.toLocaleTimeString(undefined,{hour:'numeric', minute:'2-digit'})}</div></div>`;
+      tiles += `<div class="item"><span class="k">Date</span><span class="v">${d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})}</span></div>`;
+      tiles += `<div class="item"><span class="k">Kickoff</span><span class="v">${d.toLocaleTimeString(undefined,{hour:'numeric', minute:'2-digit'})}</span></div>`;
     }
-    tiles += `<div class="detail-tile"><div class="k">Competition</div><div class="v">${item.comp || 'Unknown competition'}</div></div>`;
-    tiles += `<div class="detail-tile"><div class="k">Status</div><div class="v">${isLive ? 'Live — ' + item.min : isPre ? 'Scheduled' : isDemo ? 'Demo match' : 'Final'}</div></div>`;
-    if(item.venue) tiles += `<div class="detail-tile"><div class="k">Stadium</div><div class="v">${item.venue}</div></div>`;
+    tiles += `<div class="item"><span class="k">Competition</span><span class="v">${item.comp || 'Unknown competition'}</span></div>`;
+    tiles += `<div class="item"><span class="k">Status</span><span class="v">${isLive ? 'Live — ' + item.min : isPre ? 'Scheduled' : isDemo ? 'Demo match' : 'Final'}</span></div>`;
+    if(item.venue) tiles += `<div class="item"><span class="k">Stadium</span><span class="v">${item.venue}</span></div>`;
     const canFetchExtras = !isDemo && item.id && item.sport && item.leagueCode;
     if(canFetchExtras){
-      tiles += `<div class="detail-tile" id="detailWeatherRow"><div class="k">Weather</div><div class="v">Loading…</div></div>`;
-      tiles += `<div class="detail-tile" id="detailRefRow"><div class="k">Referee</div><div class="v">Loading…</div></div>`;
+      tiles += `<div class="item" id="detailWeatherRow"><span class="k">Weather</span><span class="v">Loading…</span></div>`;
+      tiles += `<div class="item" id="detailRefRow"><span class="k">Referee</span><span class="v">Loading…</span></div>`;
     }
 
     const canFetchH2H = item.teamIdA && item.teamIdB && item.sport && item.leagueCode;
     document.getElementById('detailMeta').innerHTML = `
       <div class="sectiontitle">Match Info</div>
-      <div class="detail-tiles">${tiles}</div>
-      ${canFetchH2H ? `<div class="sectiontitle" style="margin-top:18px;">Head-to-Head</div><div class="h2h-tiles" id="detailH2H"><div class="detail-tile">Loading…</div></div>` : ''}
+      <div class="detail-line">${tiles}</div>
+      ${canFetchH2H ? `<div class="sectiontitle" style="margin-top:18px;">Head-to-Head</div><div class="h2h-tiles" id="detailH2H"><div class="h2h-tile">Loading…</div></div>` : ''}
     `;
     showView('detail');
 
@@ -1645,7 +1648,7 @@
           }).sort((a,b)=> new Date(b.date) - new Date(a.date)).slice(0, 4);
 
           if(!events.length){
-            h2hEl.innerHTML = `<div class="detail-tile">No recent meetings found</div>`;
+            h2hEl.innerHTML = `<div class="h2h-tile">No recent meetings found</div>`;
             return;
           }
           h2hEl.innerHTML = events.map(ev=>{
@@ -1662,7 +1665,7 @@
         .catch(()=>{
           if(mySeqH2H !== detailRequestSeq) return;
           const h2hEl = document.getElementById('detailH2H');
-          if(h2hEl) h2hEl.innerHTML = `<div class="detail-tile">Unavailable</div>`;
+          if(h2hEl) h2hEl.innerHTML = `<div class="h2h-tile">Unavailable</div>`;
         });
     }
   }
