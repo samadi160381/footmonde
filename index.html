@@ -871,10 +871,16 @@
   // Renders the "Live Now" sidebar from real league data. counts = {label: liveCount}
   function renderLeagueSidebar(counts){
     const leagueList = document.getElementById('leagueList');
-    leagueList.innerHTML = LEAGUES.map(lg=>`<div class="leaguerow">
+    leagueList.innerHTML = LEAGUES.map(lg=>`<div class="leaguerow" data-league="${lg.label}">
       <div class="l-left"><div class="flag" style="background:${lg.color}">${lg.label.slice(0,1)}</div>${lg.label}</div>
       <div class="count">${counts && (lg.label in counts) ? counts[lg.label] : '–'}</div>
     </div>`).join('');
+    leagueList.querySelectorAll('.leaguerow').forEach(row=>{
+      row.addEventListener('click', ()=>{
+        window.leagueFilter = row.dataset.league;
+        showView('scores');
+      });
+    });
   }
   renderLeagueSidebar(); // initial render with real names, counts fill in once live data loads
 
