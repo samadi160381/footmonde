@@ -771,6 +771,16 @@
     <div id="viewDetail" style="display:none;">
       <div class="backrow" id="detailBackBtn">&#8592; Back</div>
       <div class="card" id="detailHero"></div>
+      <div class="card">
+        <div class="tabbar" id="detailTabbar" style="padding:0 18px;">
+          <div class="t active" data-tab="overview">Overview</div>
+          <div class="t" data-tab="stats">Stats</div>
+          <div class="t" data-tab="lineups">Lineups</div>
+          <div class="t" data-tab="h2h">H2H</div>
+          <div class="t" data-tab="standings">Standings</div>
+          <div class="t" data-tab="news">News</div>
+        </div>
+      </div>
       <div class="card cardpad" id="detailMeta"></div>
     </div>
   </div>
@@ -1549,6 +1559,14 @@
 
   // ---- Match Detail page ----
   let detailRequestSeq = 0;
+  // ---- Match detail: tab state ----
+  let currentDetailItem = null;
+  let currentDetailFlags = {};
+  let currentDetailTab = 'overview';
+  let detailWeatherText = 'Loading…';
+  let detailRefText = 'Loading…';
+  let detailH2HHtml = '<div class="h2h-tile">Loading…</div>';
+
   function openDetail(item){
     const isLive = item.state === 'in';
     const isPre = item.state === 'pre';
@@ -1575,27 +1593,18 @@
         ${isDemo ? '<div style="text-align:center;"><span class="demo-flag">Demo data</span></div>' : ''}
       </div>`;
 
-    let tiles = '';
-    if(item.date && !isDemo){
-      const d = new Date(item.date);
-      tiles += `<div class="item"><span class="k">Date</span><span class="v">${d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})}</span></div>`;
-      tiles += `<div class="item"><span class="k">Kickoff</span><span class="v">${d.toLocaleTimeString(undefined,{hour:'numeric', minute:'2-digit'})}</span></div>`;
-    }
-    tiles += `<div class="item"><span class="k">Competition</span><span class="v">${item.comp || 'Unknown competition'}</span></div>`;
-    tiles += `<div class="item"><span class="k">Status</span><span class="v">${isLive ? 'Live — ' + item.min : isPre ? 'Scheduled' : isDemo ? 'Demo match' : 'Final'}</span></div>`;
-    if(item.venue) tiles += `<div class="item"><span class="k">Stadium</span><span class="v">${item.venue}</span></div>`;
     const canFetchExtras = !isDemo && item.id && item.sport && item.leagueCode;
-    if(canFetchExtras){
-      tiles += `<div class="item" id="detailWeatherRow"><span class="k">Weather</span><span class="v">Loading…</span></div>`;
-      tiles += `<div class="item" id="detailRefRow"><span class="k">Referee</span><span class="v">Loading…</span></div>`;
-    }
-
     const canFetchH2H = item.teamIdA && item.teamIdB && item.sport && item.leagueCode;
-    document.getElementById('detailMeta').innerHTML = `
-      <div class="sectiontitle">Match Info</div>
-      <div class="detail-line">${tiles}</div>
-      ${canFetchH2H ? `<div class="sectiontitle" style="margin-top:18px;">Head-to-Head</div><div class="h2h-tiles" id="detailH2H"><div class="h2h-tile">Loading…</div></div>` : ''}
-    `;
+
+    currentDetailItem = item;
+    currentDetailFlags = { isLive, isPre, isDemo, canFetchExtras, canFetchH2H };
+    currentDetailTab = 'overview';
+    detailWeatherText = 'Loading…';
+    detailRefText = 'Loading…';
+    detailH2HHtml = '<div class="h2h-tile">Loading…</div>';
+
+    document.querySelectorAll('#detailTabbar .t').forEach(t=> t.classList.toggle('active', t.dataset.tab === 'overview'));
+    renderDetailPanel();
     showView('detail');
 
     if(canFetchExtras){
@@ -1605,28 +1614,25 @@
         .then(data=>{
           // If the user has since opened a different match, don't overwrite it with stale data.
           if(mySeq !== detailRequestSeq) return;
-          const weatherRow = document.getElementById('detailWeatherRow');
-          const refRow = document.getElementById('detailRefRow');
-          if(!weatherRow || !refRow) return;
 
           const w = data.gameInfo?.weather;
           if(w && (w.displayValue || w.temperature != null)){
             const tempTxt = w.temperature != null ? `${w.temperature}°F` : '';
-            weatherRow.querySelector('.v').textContent = [tempTxt, w.displayValue].filter(Boolean).join(' — ');
+            detailWeatherText = [tempTxt, w.displayValue].filter(Boolean).join(' — ');
           } else {
-            weatherRow.querySelector('.v').textContent = 'Not available (indoor or not reported)';
+            detailWeatherText = 'Not available (indoor or not reported)';
           }
 
           const officials = data.gameInfo?.officials;
           const ref = officials && officials.length ? officials[0].displayName : null;
-          refRow.querySelector('.v').textContent = ref || 'Not yet announced';
+          detailRefText = ref || 'Not yet announced';
+          if(currentDetailTab === 'overview') renderDetailPanel();
         })
         .catch(()=>{
           if(mySeq !== detailRequestSeq) return;
-          const weatherRow = document.getElementById('detailWeatherRow');
-          const refRow = document.getElementById('detailRefRow');
-          if(weatherRow) weatherRow.querySelector('.v').textContent = 'Unavailable';
-          if(refRow) refRow.querySelector('.v').textContent = 'Unavailable';
+          detailWeatherText = 'Unavailable';
+          detailRefText = 'Unavailable';
+          if(currentDetailTab === 'overview') renderDetailPanel();
         });
     } else {
       detailRequestSeq++; // invalidate any in-flight fetch from a previously opened real match
@@ -1638,8 +1644,6 @@
         .then(r=>r.ok ? r.json() : Promise.reject())
         .then(data=>{
           if(mySeqH2H !== detailRequestSeq) return;
-          const h2hEl = document.getElementById('detailH2H');
-          if(!h2hEl) return;
           const events = (data.events || []).filter(ev=>{
             const comp = ev.competitions?.[0];
             if(!comp || comp.id === item.id) return false;
@@ -1648,27 +1652,132 @@
           }).sort((a,b)=> new Date(b.date) - new Date(a.date)).slice(0, 4);
 
           if(!events.length){
-            h2hEl.innerHTML = `<div class="h2h-tile">No recent meetings found</div>`;
-            return;
+            detailH2HHtml = `<div class="h2h-tile">No recent meetings found</div>`;
+          } else {
+            detailH2HHtml = events.map(ev=>{
+              const comp = ev.competitions[0];
+              const home = comp.competitors.find(c=>c.homeAway === 'home');
+              const away = comp.competitors.find(c=>c.homeAway === 'away');
+              const d = new Date(ev.date);
+              return `<div class="h2h-tile">
+                <div class="h2h-date">${d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'})}</div>
+                <div class="h2h-score">${home.team.shortDisplayName} ${home.score}–${away.score} ${away.team.shortDisplayName}</div>
+              </div>`;
+            }).join('');
           }
-          h2hEl.innerHTML = events.map(ev=>{
-            const comp = ev.competitions[0];
-            const home = comp.competitors.find(c=>c.homeAway === 'home');
-            const away = comp.competitors.find(c=>c.homeAway === 'away');
-            const d = new Date(ev.date);
-            return `<div class="h2h-tile">
-              <div class="h2h-date">${d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'})}</div>
-              <div class="h2h-score">${home.team.shortDisplayName} ${home.score}–${away.score} ${away.team.shortDisplayName}</div>
-            </div>`;
-          }).join('');
+          if(currentDetailTab === 'h2h') renderDetailPanel();
         })
         .catch(()=>{
           if(mySeqH2H !== detailRequestSeq) return;
-          const h2hEl = document.getElementById('detailH2H');
-          if(h2hEl) h2hEl.innerHTML = `<div class="h2h-tile">Unavailable</div>`;
+          detailH2HHtml = `<div class="h2h-tile">Unavailable</div>`;
+          if(currentDetailTab === 'h2h') renderDetailPanel();
         });
     }
   }
+
+  // Builds the content for whichever detail tab is currently active
+  function renderDetailPanel(){
+    const item = currentDetailItem;
+    const meta = document.getElementById('detailMeta');
+    if(!item || !meta) return;
+    const { isLive, isPre, isDemo, canFetchExtras, canFetchH2H } = currentDetailFlags;
+
+    if(currentDetailTab === 'overview'){
+      let tiles = '';
+      if(item.date && !isDemo){
+        const d = new Date(item.date);
+        tiles += `<div class="item"><span class="k">Date</span><span class="v">${d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})}</span></div>`;
+        tiles += `<div class="item"><span class="k">Kickoff</span><span class="v">${d.toLocaleTimeString(undefined,{hour:'numeric', minute:'2-digit'})}</span></div>`;
+      }
+      tiles += `<div class="item"><span class="k">Competition</span><span class="v">${item.comp || 'Unknown competition'}</span></div>`;
+      tiles += `<div class="item"><span class="k">Status</span><span class="v">${isLive ? 'Live — ' + item.min : isPre ? 'Scheduled' : isDemo ? 'Demo match' : 'Final'}</span></div>`;
+      if(item.venue) tiles += `<div class="item"><span class="k">Stadium</span><span class="v">${item.venue}</span></div>`;
+      if(canFetchExtras){
+        tiles += `<div class="item"><span class="k">Weather</span><span class="v">${detailWeatherText}</span></div>`;
+        tiles += `<div class="item"><span class="k">Referee</span><span class="v">${detailRefText}</span></div>`;
+      }
+      meta.innerHTML = `
+        <div class="sectiontitle">Match Info</div>
+        <div class="detail-line">${tiles}</div>
+        ${isPre ? `<div style="margin-top:14px; color:var(--muted); font-size:13.5px;">${item.a} vs ${item.b} kicks off ${item.date ? new Date(item.date).toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'}) : 'soon'}.</div>` : ''}
+      `;
+    }
+
+    else if(currentDetailTab === 'stats'){
+      const rows = stats.map(s=>{
+        const total = s.a + s.b || 1;
+        const pctA = (s.a/total*100).toFixed(0);
+        return `<div class="statrow">
+          <div class="num">${s.a}${s.unit||''}</div>
+          <div class="statbarwrap">
+            <div class="statlabel">${s.label}</div>
+            <div class="statbar"><div class="a" style="width:${pctA}%"></div><div class="b" style="width:${100-pctA}%"></div></div>
+          </div>
+          <div class="num">${s.b}${s.unit||''}</div>
+        </div>`;
+      }).join('');
+      meta.innerHTML = `
+        <div class="sectiontitle">Match Stats <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">(demo data)</span></div>
+        <div class="stat-crests">
+          <div class="mini-crest2" style="background:linear-gradient(145deg, ${item.crestA}, #0e1626);"></div>
+          <div class="mini-crest2" style="background:linear-gradient(145deg, ${item.crestB}, #200a0a);"></div>
+        </div>
+        ${rows}
+      `;
+    }
+
+    else if(currentDetailTab === 'lineups'){
+      meta.innerHTML = `
+        <div class="sectiontitle">Lineups</div>
+        <div style="margin-top:10px; color:var(--muted); font-size:13.5px;">Lineups for ${item.a} vs ${item.b} will be announced closer to kickoff.</div>
+      `;
+    }
+
+    else if(currentDetailTab === 'h2h'){
+      meta.innerHTML = `
+        <div class="sectiontitle">Head-to-Head</div>
+        ${canFetchH2H
+          ? `<div class="h2h-tiles">${detailH2HHtml}</div>`
+          : `<div style="margin-top:10px; color:var(--muted); font-size:13.5px;">Head-to-head history isn't available for this matchup.</div>`}
+      `;
+    }
+
+    else if(currentDetailTab === 'standings'){
+      const rows = standings.map(s=>`<div class="standingrow">
+        <div class="pos">${s.pos}</div>
+        <div class="team"><div class="team-dot" style="background:${s.color}"></div>${s.name}</div>
+        <div class="num">${s.p}</div>
+        <div class="num">${s.gd}</div>
+        <div class="pts">${s.pts}</div>
+      </div>`).join('');
+      meta.innerHTML = `
+        <div class="sectiontitle">League Standings <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">(demo data)</span></div>
+        <div class="standingrow headrow"><div></div><div>${item.comp || 'Competition'}</div><div>P</div><div>GD</div><div>Pts</div></div>
+        ${rows}
+      `;
+    }
+
+    else if(currentDetailTab === 'news'){
+      const cards = newsItems.slice(0, 4).map(n=>`<div class="newscard">
+        <div class="newsthumb" style="background:${n.grad}"><div class="tag">${n.tag}</div></div>
+        <div class="newsbody">${n.title}<span class="time">${n.time}</span></div>
+      </div>`).join('');
+      meta.innerHTML = `
+        <div class="sectiontitle">Related News <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">(demo data)</span></div>
+        <div class="newsgrid" style="padding:14px 0 0;">${cards}</div>
+      `;
+    }
+  }
+
+  document.querySelectorAll('#detailTabbar .t').forEach(tabEl=>{
+    tabEl.addEventListener('click', ()=>{
+      if(!currentDetailItem) return;
+      document.querySelectorAll('#detailTabbar .t').forEach(x=>x.classList.remove('active'));
+      tabEl.classList.add('active');
+      currentDetailTab = tabEl.dataset.tab;
+      renderDetailPanel();
+    });
+  });
 
   // ---- Search ----
   const searchInput = document.getElementById('searchInput');
