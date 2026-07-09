@@ -301,7 +301,7 @@
     display:flex; align-items:center; gap:14px;
   }
   .bigscore .m{ color:var(--muted); font-size:34px; }
-  .minute{ font-family:'IBM Plex Mono', monospace; color:var(--sun); font-size:13px; font-weight:600; }
+  .minute{ font-family:'IBM Plex Mono', monospace; color:var(--sun); font-size:16px; font-weight:700; letter-spacing:.02em; }
   .agg{ font-size:11.5px; color:var(--muted); }
   .scorers{ display:flex; justify-content:space-between; margin-top:22px; padding-top:16px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted); }
   .scorers .side{ display:flex; flex-direction:column; gap:5px; }
@@ -837,8 +837,8 @@
       matchList.innerHTML += `<div class="matchrow" data-idx="${i}">
         <div class="mrmin ${m.cls}">${m.min}</div>
         <div class="teams-mini">
-          <div class="row"><div class="mini-crest" style="background:${m.crestA}"></div>${m.a}</div>
-          <div class="row"><div class="mini-crest" style="background:${m.crestB}"></div>${m.b}</div>
+          <div class="row"><div class="mini-crest" style="background:${m.crestA};">${crestImgHTML(m.logoA, '')}</div>${m.a}</div>
+          <div class="row"><div class="mini-crest" style="background:${m.crestB};">${crestImgHTML(m.logoB, '')}</div>${m.b}</div>
         </div>
         <div class="scores-mini"><div>${m.sa}</div><div>${m.sb}</div></div>
         <div class="meta-mini">
@@ -895,6 +895,7 @@
         openDetail({
           a:f.a, b:f.b, sa:'–', sb:'–', comp: f.comp || 'Upcoming Fixture',
           sub:'Scheduled', min: f.time, cls:'', crestA:'#1c2b4a', crestB:'#3a1414',
+          logoA:f.logoA, logoB:f.logoB,
           state:'pre', date:f.rawDate, venue:f.venue, broadcast:f.broadcast,
         });
       });
@@ -990,6 +991,14 @@
   const statusText = document.getElementById('dataStatusText');
   const liveCountEl = document.getElementById('liveCount');
 
+  // Renders a team crest: real logo image if available, else falls back to
+  // initials on a colored circle (and falls back automatically if the image 404s).
+  function crestImgHTML(logo, initials, extraStyle){
+    if(!logo) return initials;
+    const safeInitials = initials.replace(/'/g, "\\'");
+    return `<img src="${logo}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:50%;${extraStyle||''}" onerror="this.outerHTML='${safeInitials}'">`;
+  }
+
   function fmtDay(iso){
     const d = new Date(iso);
     return d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
@@ -1021,6 +1030,7 @@
         sa: home.score ?? '0',
         sb: away.score ?? '0',
         crestA: lg.crestA, crestB: lg.crestB,
+        logoA: home.team.logo || '', logoB: away.team.logo || '',
         venue: comp.venue?.fullName || '',
         broadcast: (comp.broadcasts && comp.broadcasts[0]?.names || []).join(', '),
       };
@@ -1064,7 +1074,7 @@
     if(live.length){
       renderMatches(live.slice(0,8).map(e=>({
         min: e.clock, cls: e.clock === 'Halftime' ? 'ht' : '',
-        crestA: e.crestA, crestB: e.crestB,
+        crestA: e.crestA, crestB: e.crestB, logoA: e.logoA, logoB: e.logoB,
         a: e.a, b: e.b, sa: e.sa, sb: e.sb,
         comp: e.league, sub: 'Live now', star:false,
         state: e.state, date: e.date, venue: e.venue, broadcast: e.broadcast,
@@ -1073,7 +1083,7 @@
       // no live games anywhere right now — show soonest upcoming instead, clearly labeled
       renderMatches(upcoming.slice(0,6).map(e=>({
         min: fmtTime(e.date), cls: 'q',
-        crestA: e.crestA, crestB: e.crestB,
+        crestA: e.crestA, crestB: e.crestB, logoA: e.logoA, logoB: e.logoB,
         a: e.a, b: e.b, sa: '–', sb: '–',
         comp: e.league, sub: 'Scheduled · ' + fmtDay(e.date), star:false,
         state: e.state, date: e.date, venue: e.venue, broadcast: e.broadcast,
@@ -1089,6 +1099,7 @@
         day: fmtDay(e.date), time: fmtTime(e.date),
         a: e.a, b: e.b, favA:'', favB:'',
         comp: e.league, rawDate: e.date, venue: e.venue, broadcast: e.broadcast,
+        logoA: e.logoA, logoB: e.logoB,
       })));
     }
 
@@ -1100,8 +1111,8 @@
       document.getElementById('heroNameB').textContent = heroEvent.b;
       document.getElementById('heroCrestA').style.background = `linear-gradient(145deg, ${heroEvent.crestA}, #0e1626)`;
       document.getElementById('heroCrestB').style.background = `linear-gradient(145deg, ${heroEvent.crestB}, #200a0a)`;
-      document.getElementById('heroCrestA').textContent = heroEvent.a.slice(0,2).toUpperCase();
-      document.getElementById('heroCrestB').textContent = heroEvent.b.slice(0,2).toUpperCase();
+      document.getElementById('heroCrestA').innerHTML = crestImgHTML(heroEvent.logoA, heroEvent.a.slice(0,2).toUpperCase());
+      document.getElementById('heroCrestB').innerHTML = crestImgHTML(heroEvent.logoB, heroEvent.b.slice(0,2).toUpperCase());
 
       if(heroEvent.state === 'pre'){
         document.getElementById('heroScore').innerHTML = 'vs';
@@ -1165,7 +1176,7 @@
       list.push({
         key, a:e.a, b:e.b, sa:e.sa, sb:e.sb,
         comp: e.comp || e.league, state: e.state, date: e.date,
-        crestA: e.crestA, crestB: e.crestB,
+        crestA: e.crestA, crestB: e.crestB, logoA: e.logoA, logoB: e.logoB,
       });
     }
     saveFavorites(list);
@@ -1199,8 +1210,8 @@
             <span class="star star-btn ${isFavorited(favKey)?'on':''}" data-favkey="${favKey}">${isFavorited(favKey)?'&#9733;':'&#9734;'}</span>
           </div>
         </div>
-        <div class="lc-row"><div class="name"><div class="lc-crest" style="background:${e.crestA}"></div>${e.a}</div><div class="lc-score">${isLive ? e.sa : ''}</div></div>
-        <div class="lc-row"><div class="name"><div class="lc-crest" style="background:${e.crestB}"></div>${e.b}</div><div class="lc-score">${isLive ? e.sb : ''}</div></div>
+        <div class="lc-row"><div class="name"><div class="lc-crest" style="background:${e.crestA};">${crestImgHTML(e.logoA, '')}</div>${e.a}</div><div class="lc-score">${isLive ? e.sa : ''}</div></div>
+        <div class="lc-row"><div class="name"><div class="lc-crest" style="background:${e.crestB};">${crestImgHTML(e.logoB, '')}</div>${e.b}</div><div class="lc-score">${isLive ? e.sb : ''}</div></div>
       </div>`;
     });
     liveGamesGrid.querySelectorAll('.star-btn').forEach(star=>{
@@ -1219,7 +1230,7 @@
           a:e.a, b:e.b, sa:e.sa, sb:e.sb, comp:e.league,
           sub: e.state==='in' ? 'Live now' : 'Scheduled',
           min: e.state==='in' ? e.clock : fmtTime(e.date), cls:'',
-          crestA:e.crestA, crestB:e.crestB,
+          crestA:e.crestA, crestB:e.crestB, logoA:e.logoA, logoB:e.logoB,
           state:e.state, date:e.date, venue:e.venue, broadcast:e.broadcast,
         });
       });
@@ -1269,7 +1280,7 @@
   function eventToRow(e){
     return {
       a:e.a, b:e.b, sa:e.sa, sb:e.sb, comp:e.league || e.comp,
-      state:e.state, date:e.date, crestA:e.crestA, crestB:e.crestB,
+      state:e.state, date:e.date, crestA:e.crestA, crestB:e.crestB, logoA:e.logoA, logoB:e.logoB,
       clock:e.clock, venue:e.venue, broadcast:e.broadcast,
     };
   }
@@ -1285,8 +1296,8 @@
           <span class="star star-btn ${isFavorited(favKey)?'on':''}" data-favkey="${favKey}">${isFavorited(favKey)?'&#9733;':'&#9734;'}</span>
         </div>
       </div>
-      <div class="lc-row"><div class="name"><div class="lc-crest" style="background:${e.crestA}"></div>${e.a}</div><div class="lc-score">${e.state!=='pre' ? e.sa : ''}</div></div>
-      <div class="lc-row"><div class="name"><div class="lc-crest" style="background:${e.crestB}"></div>${e.b}</div><div class="lc-score">${e.state!=='pre' ? e.sb : ''}</div></div>
+      <div class="lc-row"><div class="name"><div class="lc-crest" style="background:${e.crestA};">${crestImgHTML(e.logoA, '')}</div>${e.a}</div><div class="lc-score">${e.state!=='pre' ? e.sa : ''}</div></div>
+      <div class="lc-row"><div class="name"><div class="lc-crest" style="background:${e.crestB};">${crestImgHTML(e.logoB, '')}</div>${e.b}</div><div class="lc-score">${e.state!=='pre' ? e.sb : ''}</div></div>
     </div>`;
   }
   function wireScoreCards(container, list){
@@ -1390,7 +1401,7 @@
     el.querySelectorAll('.fixrow').forEach(row=>{
       row.addEventListener('click', ()=>{
         const e = flat[+row.dataset.idx];
-        openDetail({ a:e.a, b:e.b, sa:'–', sb:'–', comp:e.league, sub:'Scheduled', min:fmtTime(e.date), cls:'', crestA:e.crestA, crestB:e.crestB, state:'pre', date:e.date, venue:e.venue, broadcast:e.broadcast });
+        openDetail({ a:e.a, b:e.b, sa:'–', sb:'–', comp:e.league, sub:'Scheduled', min:fmtTime(e.date), cls:'', crestA:e.crestA, crestB:e.crestB, logoA:e.logoA, logoB:e.logoB, state:'pre', date:e.date, venue:e.venue, broadcast:e.broadcast });
       });
     });
   }
@@ -1460,7 +1471,7 @@
         <div class="detail-tag">&#127942; ${item.comp}${item.sub ? ' <span class="sep">•</span> ' + item.sub : ''}</div>
         <div class="detail-teams">
           <div class="team-block">
-            <div class="crest a" style="background:linear-gradient(145deg, ${item.crestA}, #0e1626);">${item.a.slice(0,2).toUpperCase()}</div>
+            <div class="crest a" style="background:linear-gradient(145deg, ${item.crestA}, #0e1626);">${crestImgHTML(item.logoA, item.a.slice(0,2).toUpperCase())}</div>
             <div class="team-name">${item.a}</div>
           </div>
           <div class="score-center">
@@ -1469,7 +1480,7 @@
             <div class="minute">${item.min || ''}</div>
           </div>
           <div class="team-block right">
-            <div class="crest b" style="background:linear-gradient(145deg, ${item.crestB}, #200a0a);">${item.b.slice(0,2).toUpperCase()}</div>
+            <div class="crest b" style="background:linear-gradient(145deg, ${item.crestB}, #200a0a);">${crestImgHTML(item.logoB, item.b.slice(0,2).toUpperCase())}</div>
             <div class="team-name">${item.b}</div>
           </div>
         </div>
