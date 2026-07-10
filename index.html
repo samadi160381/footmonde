@@ -3,7 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MundoGoal — Live Scores, Worldwide</title>
+<title>MundoGoal — Live Football & Sports Scores, Fixtures, Standings & News</title>
+<meta name="description" content="Follow live football scores, fixtures, standings, head-to-head stats and the latest transfer news from the World Cup, Champions League, Premier League, La Liga, Serie A and more — all in one place on MundoGoal.">
+<meta name="keywords" content="live football scores, live scores, World Cup 2026, Champions League, Premier League, La Liga, football fixtures, league standings, football news, transfer news">
+<meta name="robots" content="index, follow">
+<meta name="author" content="MundoGoal">
+<link rel="canonical" href="https://mundogoal.vercel.app/">
+<meta name="theme-color" content="#0A0E13">
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MundoGoal">
+<meta property="og:title" content="MundoGoal — Live Football & Sports Scores, Fixtures & News">
+<meta property="og:description" content="Live scores, fixtures, standings and news from the World Cup, Champions League and top leagues worldwide — updated in real time.">
+<meta property="og:url" content="https://mundogoal.vercel.app/">
+<meta property="og:image" content="https://mundogoal.vercel.app/og-image.png">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MundoGoal — Live Football & Sports Scores, Fixtures & News">
+<meta name="twitter:description" content="Live scores, fixtures, standings and news from the World Cup, Champions League and top leagues worldwide — updated in real time.">
+<meta name="twitter:image" content="https://mundogoal.vercel.app/og-image.png">
+
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/favicon.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "MundoGoal",
+  "url": "https://mundogoal.vercel.app/",
+  "description": "Live football and sports scores, fixtures, standings, head-to-head stats and news from the World Cup, Champions League and top leagues worldwide.",
+  "applicationCategory": "SportsApplication",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -131,8 +169,19 @@
     font-weight:700;
     font-size:19px;
     letter-spacing:-0.02em;
+    margin:0;
   }
   .brand-name span{ color:var(--pitch); }
+
+  .site-footer{ border-top:1px solid var(--line); margin-top:24px; padding:32px 24px 0; }
+  .footer-inner{ max-width:1400px; margin:0 auto; display:flex; flex-wrap:wrap; gap:40px; justify-content:space-between; padding-bottom:28px; }
+  .footer-brand p{ color:var(--muted); font-size:12.5px; max-width:320px; line-height:1.6; margin-top:10px; }
+  .footer-links{ display:flex; gap:56px; flex-wrap:wrap; }
+  .footer-col-title{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:10px; }
+  .footer-col{ display:flex; flex-direction:column; gap:8px; }
+  .footer-col a{ color:var(--text); text-decoration:none; font-size:13px; opacity:0.85; }
+  .footer-col a:hover{ opacity:1; color:var(--pitch); }
+  .footer-bottom{ border-top:1px solid var(--line); padding:16px 24px; text-align:center; color:var(--muted); font-size:11.5px; }
 
   nav{ display:flex; gap:4px; flex:1; }
   nav a{
@@ -598,9 +647,9 @@
 <header>
   <div class="brand">
     <div class="brand-mark"></div>
-    <div class="brand-name">Mundo<span>Goal</span></div>
+    <h1 class="brand-name">Mundo<span>Goal</span></h1>
   </div>
-  <nav>
+  <nav aria-label="Main navigation">
     <a href="#" class="active" id="navOverview">Overview</a>
     <a href="#" id="navLive">Live</a>
     <a href="#" id="navScores">Scores</a>
@@ -629,7 +678,7 @@
   </div>
 </header>
 
-<div class="layout">
+<div class="layout" role="main">
 
   <!-- SIDEBAR -->
   <div class="sidebar">
@@ -654,8 +703,10 @@
     <div id="viewOverview">
     <div class="card">
       <div class="dateStrip" id="dateStrip">
-        <span class="navbtn">&#8592;</span>
-        <div class="iconbtn cal">&#128197;</div>
+        <span class="navbtn" id="dateStripPrev">&#8592;</span>
+        <span class="navbtn" id="dateStripNext" style="order:1;">&#8594;</span>
+        <div class="iconbtn cal" id="dateStripCalBtn" style="order:2;">&#128197;</div>
+        <input type="date" id="dateStripPicker" style="position:absolute; opacity:0; width:1px; height:1px; pointer-events:none;">
       </div>
     </div>
 
@@ -838,6 +889,34 @@
 
 </div>
 
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="brand-name" style="font-size:16px;">Mundo<span>Goal</span></div>
+      <p>Live football and sports scores, fixtures, standings and news — updated in real time from around the world.</p>
+    </div>
+    <div class="footer-links">
+      <div class="footer-col">
+        <div class="footer-col-title">Explore</div>
+        <a href="#" id="footerLive">Live Scores</a>
+        <a href="#" id="footerFixtures">Fixtures</a>
+        <a href="#" id="footerLeagues">Leagues</a>
+        <a href="#" id="footerNews">News</a>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">Top Competitions</div>
+        <a href="#" data-league="FIFA World Cup" class="footerLeagueLink">FIFA World Cup</a>
+        <a href="#" data-league="Champions League" class="footerLeagueLink">Champions League</a>
+        <a href="#" data-league="Premier League" class="footerLeagueLink">Premier League</a>
+        <a href="#" data-league="La Liga" class="footerLeagueLink">La Liga</a>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>&#169; <span id="footerYear"></span> MundoGoal. Live data via ESPN's public scoreboard API.</span>
+  </div>
+</footer>
+
 <!-- ARTICLE MODAL -->
 <div id="articleOverlay" class="article-overlay" style="display:none;">
   <div class="article-modal">
@@ -873,12 +952,13 @@
     {name:"Serie Boreal", count:10, color:"#B98CFF"},
     {name:"Nordfeld Liga", count:9, color:"#FF6B6B"},
   ];
+  // "Popular" links to real leagues from LEAGUES (so they're actually clickable/functional)
   const popular = [
-    {icon:"&#127942;", name:"World Federation Cup"},
-    {icon:"&#127895;", name:"Nations League"},
-    {icon:"&#127944;", name:"World Hoops League"},
-    {icon:"&#127944;", name:"Continental Football"},
-    {icon:"&#127934;", name:"Grand Slam Tour"},
+    {icon:"&#127942;", name:"FIFA World Cup"},
+    {icon:"&#11088;", name:"Champions League"},
+    {icon:"&#127945;", name:"Premier League"},
+    {icon:"&#127944;", name:"NBA"},
+    {icon:"&#9918;", name:"MLB"},
   ];
   // Catalog of teams the user can choose from in "My Teams" (Edit panel).
   // "My Teams" itself starts empty until the user picks teams from here.
@@ -1100,7 +1180,13 @@
 
   const popularList = document.getElementById('popularList');
   popular.forEach(p=>{
-    popularList.innerHTML += `<div class="popularrow"><span class="dot-icon">${p.icon}</span>${p.name}</div>`;
+    popularList.innerHTML += `<div class="popularrow" data-league="${p.name}" style="cursor:pointer;"><span class="dot-icon">${p.icon}</span>${p.name}</div>`;
+  });
+  popularList.querySelectorAll('.popularrow').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      window.leagueFilter = row.dataset.league;
+      showView('scores');
+    });
   });
 
   // ---- My Teams (starts empty; persisted in this browser via localStorage) ----
@@ -1380,12 +1466,15 @@
   function toLocalYMD(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
   let selectedDateISO = toLocalYMD(new Date());
 
-  // Build the date strip from the real current date (2 days back, today, 2 days ahead)
+  // Build the date strip: 3 days back through 35 days ahead (a bit over a month),
+  // horizontally scrollable, with today active and scrolled into view.
+  const DATE_STRIP_BACK = 3;
+  const DATE_STRIP_FORWARD = 35;
   (function renderDateStrip(){
     const strip = document.getElementById('dateStrip');
     const calBtn = strip.querySelector('.cal');
     const today = new Date();
-    for(let offset = -2; offset <= 2; offset++){
+    for(let offset = -DATE_STRIP_BACK; offset <= DATE_STRIP_FORWARD; offset++){
       const d = new Date(today);
       d.setDate(today.getDate() + offset);
       const label = offset === 0 ? 'Today' : d.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'});
@@ -1403,6 +1492,38 @@
     d.classList.add('active');
     selectedDateISO = d.dataset.date;
     refreshMatchListPanel();
+  });
+  document.getElementById('dateStripPrev').addEventListener('click', ()=>{
+    document.getElementById('dateStrip').scrollBy({left:-240, behavior:'smooth'});
+  });
+  document.getElementById('dateStripNext').addEventListener('click', ()=>{
+    document.getElementById('dateStrip').scrollBy({left:240, behavior:'smooth'});
+  });
+  // Calendar icon: jump straight to any date within the fetched range via a native date picker
+  (function(){
+    const picker = document.getElementById('dateStripPicker');
+    const today = new Date();
+    const min = new Date(today); min.setDate(today.getDate() - DATE_STRIP_BACK);
+    const max = new Date(today); max.setDate(today.getDate() + DATE_STRIP_FORWARD);
+    picker.min = toLocalYMD(min);
+    picker.max = toLocalYMD(max);
+    document.getElementById('dateStripCalBtn').addEventListener('click', ()=>{
+      if(picker.showPicker) picker.showPicker(); else picker.click();
+    });
+    picker.addEventListener('change', ()=>{
+      const target = document.querySelector(`.dateStrip .d[data-date="${picker.value}"]`);
+      if(!target) return;
+      document.querySelectorAll('.dateStrip .d').forEach(x=>x.classList.remove('active'));
+      target.classList.add('active');
+      target.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+      selectedDateISO = picker.value;
+      refreshMatchListPanel();
+    });
+  })();
+  // Scroll today into a nice centered position once the strip has real width
+  requestAnimationFrame(()=>{
+    const activeEl = document.querySelector('.dateStrip .d.active');
+    if(activeEl) activeEl.scrollIntoView({inline:'center', block:'nearest'});
   });
 
   // ---- Live data: ESPN public scoreboard (no key, no account required) ----
@@ -1430,11 +1551,11 @@
   }
 
   async function fetchLeague(lg){
-    // Request a date range (today through the next 10 days) so upcoming fixtures
-    // show up for every league, not just whatever happens to be on today.
+    // Request a date range (today through the next 35 days) so upcoming fixtures
+    // show up for a full month ahead, for every league — not just whatever happens to be on today.
     const start = new Date();
     const end = new Date();
-    end.setDate(start.getDate() + 10);
+    end.setDate(start.getDate() + 35);
     const fmt = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
     const url = `https://site.api.espn.com/apis/site/v2/sports/${lg.sport}/${lg.league}/scoreboard?dates=${fmt(start)}-${fmt(end)}`;
     const res = await fetch(url);
@@ -1689,6 +1810,21 @@
   navEls.news.addEventListener('click', (ev)=>{ ev.preventDefault(); showView('news'); });
   navEls.leagues.addEventListener('click', (ev)=>{ ev.preventDefault(); showView('leagues'); });
   navEls.favorites.addEventListener('click', (ev)=>{ ev.preventDefault(); showView('favorites'); });
+
+  // ---- Footer links ----
+  const footerYearEl = document.getElementById('footerYear');
+  if(footerYearEl) footerYearEl.textContent = new Date().getFullYear();
+  document.getElementById('footerLive')?.addEventListener('click', (ev)=>{ ev.preventDefault(); showView('live'); });
+  document.getElementById('footerFixtures')?.addEventListener('click', (ev)=>{ ev.preventDefault(); showView('fixtures'); });
+  document.getElementById('footerLeagues')?.addEventListener('click', (ev)=>{ ev.preventDefault(); showView('leagues'); });
+  document.getElementById('footerNews')?.addEventListener('click', (ev)=>{ ev.preventDefault(); showView('news'); });
+  document.querySelectorAll('.footerLeagueLink').forEach(link=>{
+    link.addEventListener('click', (ev)=>{
+      ev.preventDefault();
+      window.leagueFilter = link.dataset.league;
+      showView('scores');
+    });
+  });
   document.querySelector('.viewall').addEventListener('click', ()=> showView('live'));
   document.getElementById('detailBackBtn').addEventListener('click', ()=> showView(lastView));
 
