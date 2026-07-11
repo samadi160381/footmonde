@@ -1468,10 +1468,21 @@
 
   const GROUPS_COLLAPSED_COUNT = 1; // how many groups to show in the sidebar card before "View full table"
 
+  function setStandingsError(msg){
+    const card = document.getElementById('standingsList')?.closest('.card');
+    let hint = card?.querySelector('.standings-error');
+    if(!hint && card){
+      hint = document.createElement('div');
+      hint.className = 'standings-error';
+      card.appendChild(hint);
+    }
+    if(hint) hint.textContent = msg ? `Live standings unavailable: ${msg}` : '';
+  }
+
   async function loadStandings(leagueCode, leagueLabel){
     try{
       const res = await fetch(`https://site.api.espn.com/apis/v2/sports/soccer/${leagueCode}/standings`);
-      if(!res.ok) throw new Error('standings fetch failed');
+      if(!res.ok) throw new Error(`ESPN standings HTTP ${res.status}`);
       const data = await res.json();
       const groups = data?.children;
 
@@ -1512,7 +1523,7 @@
           })
           .filter(g => g.rows.length);
 
-        if(!builtGroups.length) throw new Error('no standings data');
+        if(!builtGroups.length) throw new Error('ESPN returned group headers but no team rows');
 
         lastStandingsGroups = builtGroups;
         lastStandingsRows = null;
@@ -1520,12 +1531,13 @@
         const link = document.getElementById('viewFullTable');
         if(link) link.innerHTML = builtGroups.length > GROUPS_COLLAPSED_COUNT ? 'View full table &#8594;' : '';
         setSectionLabel('standingsList', `(${leagueLabel})`);
+        setStandingsError('');
         return;
       }
 
       // Single-table league (Premier League, La Liga, etc.)
       const entries = data?.children?.[0]?.standings?.entries || data?.standings?.[0]?.entries;
-      if(!entries || !entries.length) throw new Error('no standings data');
+      if(!entries || !entries.length) throw new Error('ESPN returned no standings entries for this league/stage');
       const allRows = entries.map((e,i)=>{
         const st = Object.fromEntries((e.stats||[]).map(s=>[s.name, s.value]));
         const gd = st.pointDifferential ?? st.goalDifferential ?? 0;
@@ -1545,8 +1557,10 @@
       const link = document.getElementById('viewFullTable');
       if(link) link.innerHTML = allRows.length > 5 ? 'View full table &#8594;' : '';
       setSectionLabel('standingsList', `(${leagueLabel})`);
+      setStandingsError('');
     }catch(err){
       console.warn('Standings live fetch failed, keeping demo data', err);
+      setStandingsError(err.message);
     }
   }
 
