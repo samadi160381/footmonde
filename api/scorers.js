@@ -26,14 +26,22 @@ async function fetchFromApiFootball(league, season, apiKey) {
     `https://v3.football.api-sports.io/players/topscorers?league=${league}&season=${season}`,
     { headers: { 'x-apisports-key': apiKey } }
   );
-  if (!apiRes.ok) throw new Error(`Upstream error ${apiRes.status}`);
   const data = await apiRes.json();
-  return (data.response || []).slice(0, 5).map((entry) => ({
+  if (!apiRes.ok) {
+    const err = new Error(`Upstream error ${apiRes.status}`);
+    err.details = data;
+    throw err;
+  }
+  const scorers = (data.response || []).slice(0, 5).map((entry) => ({
     name: entry.player?.name || 'Unknown',
     photo: entry.player?.photo || '',
     club: entry.statistics?.[0]?.team?.name || '',
     goals: entry.statistics?.[0]?.goals?.total ?? 0,
   }));
+  // Surface upstream diagnostics even on a "successful" HTTP response, since
+  // API-Football often returns 200 with an empty response[] plus an errors{}
+  // object for auth/plan/quota problems rather than a non-200 status.
+  return { scorers, _debug: { results: data.results, errors: data.errors } };
 }
 
 export default async function handler(req, res) {
@@ -56,7 +64,7 @@ export default async function handler(req, res) {
   // Fast path: still-fresh in-memory data, no network call at all.
   if (cached && cached.expiresAt > Date.now()) {
     res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600');
-    return res.status(200).json({ scorers: cached.data });
+    return res.status(200).json({ scorers: cached.data, _debug: cached.debug });
   }
 
   try {
@@ -70,16 +78,17 @@ export default async function handler(req, res) {
       inFlight.set(cacheKey, promise);
     }
 
-    const scorers = await promise;
-    memoryCache.set(cacheKey, { data: scorers, expiresAt: Date.now() + CACHE_TTL_MS });
+    const { scorers, _debug } = await promise;
+    memoryCache.set(cacheKey, { data: scorers, debug: _debug, expiresAt: Date.now() + CACHE_TTL_MS });
 
     res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600');
-    return res.status(200).json({ scorers });
+    return res.status(200).json({ scorers, _debug });
   } catch (err) {
     // If we have stale cached data, serve it rather than failing outright.
     if (cached) {
       return res.status(200).json({ scorers: cached.data, stale: true });
     }
-    return res.status(502).json({ error: 'Failed to fetch scorer data' });
+    return res.status(502).json({ error: 'Failed to fetch scorer data', details: err.details || err.message });
   }
 }
+
