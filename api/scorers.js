@@ -21,7 +21,15 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const memoryCache = new Map();   // league -> { data, expiresAt }
 const inFlight = new Map();      // league -> Promise (dedupes concurrent cold requests)
 
-async function fetchFromApiFootball(league, season, apiKey) {
+// Free-trial API-Football keys are usually only entitled to ONE specific
+// recent season (varies per account) — requesting a season outside that
+// gives a 200 OK with an empty response[] and no error, which looks
+// identical to "wrong key" from the outside. So instead of guessing one
+// season, we try a short list of recent ones and use the first that
+// actually returns scorers.
+const CANDIDATE_SEASONS = [2026, 2025, 2024, 2023, 2022];
+
+async function fetchOneSeason(league, season, apiKey) {
   const apiRes = await fetch(
     `https://v3.football.api-sports.io/players/topscorers?league=${league}&season=${season}`,
     { headers: { 'x-apisports-key': apiKey } }
@@ -38,10 +46,23 @@ async function fetchFromApiFootball(league, season, apiKey) {
     club: entry.statistics?.[0]?.team?.name || '',
     goals: entry.statistics?.[0]?.goals?.total ?? 0,
   }));
-  // Surface upstream diagnostics even on a "successful" HTTP response, since
-  // API-Football often returns 200 with an empty response[] plus an errors{}
-  // object for auth/plan/quota problems rather than a non-200 status.
-  return { scorers, _debug: { results: data.results, errors: data.errors } };
+  return { scorers, season, results: data.results, errors: data.errors };
+}
+
+async function fetchFromApiFootball(league, requestedSeason, apiKey) {
+  // If the caller pinned a specific season, only try that one.
+  const seasons = requestedSeason ? [requestedSeason] : CANDIDATE_SEASONS;
+  const tried = [];
+  for (const season of seasons) {
+    const attempt = await fetchOneSeason(league, season, apiKey);
+    tried.push({ season, results: attempt.results, errors: attempt.errors });
+    if (attempt.scorers.length) {
+      return { scorers: attempt.scorers, _debug: { season, tried } };
+    }
+  }
+  // Every season came back empty — return the diagnostics from all attempts
+  // so the client can show something more useful than "no data".
+  return { scorers: [], _debug: { tried } };
 }
 
 export default async function handler(req, res) {
@@ -51,14 +72,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing "league" query param' });
   }
 
-  const season = req.query.season || 2023; // free-trial plans only cover 2022–2024
+  const season = req.query.season ? Number(req.query.season) : null; // null = auto-try recent seasons
   const apiKey = process.env.APIFOOTBALL_KEY;
 
   if (!apiKey) {
     return res.status(500).json({ error: 'Server is missing APIFOOTBALL_KEY' });
   }
 
-  const cacheKey = `${league}:${season}`;
+  const cacheKey = `${league}:${season || 'auto'}`;
   const cached = memoryCache.get(cacheKey);
 
   // Fast path: still-fresh in-memory data, no network call at all.
