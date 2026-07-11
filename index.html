@@ -599,6 +599,9 @@
   .standingrow .pts{ font-family:'IBM Plex Mono', monospace; text-align:center; font-weight:700; }
   .team-dot{ width:16px; height:16px; border-radius:4px; flex-shrink:0; }
   .viewfull{ font-size:12.5px; color:var(--muted); padding-top:10px; border-top:1px solid var(--line); margin-top:6px; display:flex; align-items:center; gap:5px; cursor:pointer; }
+  .group-header{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--sun); margin:16px 0 4px; padding-bottom:4px; border-bottom:1px solid var(--line); }
+  .group-header:first-child{ margin-top:0; }
+  .standings-error{ font-size:11.5px; color:var(--muted); margin-top:6px; }
 
   .scorerrow{ display:flex; align-items:center; gap:10px; padding:8px 0; font-size:13px; }
   .scorerrow .rank{ width:16px; color:var(--muted); font-family:'IBM Plex Mono', monospace; font-size:12px; }
@@ -1422,17 +1425,31 @@
     if(badge) badge.textContent = text;
   }
 
-  let lastStandingsRows = null; // holds the full (up to 20-team) list for "View full table"
+  let lastStandingsRows = null;   // flat (ungrouped) list, for "View full table" on normal leagues
+  let lastStandingsGroups = null; // array of {name, rows} for group-stage tournaments (World Cup, UCL groups, etc.)
   let standingsExpanded = false;
 
-  function renderStandingsRows(rows){
-    standingsList.innerHTML = rows.map(s=>`<div class="standingrow">
+  function rowHTML(s){
+    return `<div class="standingrow">
       <div class="pos">${s.pos}</div>
       <div class="team"><div class="team-dot" style="background:${s.color}"></div>${s.name}</div>
       <div class="num">${s.p}</div>
       <div class="num">${s.gd}</div>
       <div class="pts">${s.pts}</div>
-    </div>`).join('');
+    </div>`;
+  }
+
+  function renderStandingsRows(rows){
+    standingsList.innerHTML = rows.map(rowHTML).join('');
+  }
+
+  // Renders every group as its own mini-table with a "Group A" / "Group B" header,
+  // and per-group position numbering (1-4) instead of one long continuous list.
+  function renderStandingsGroups(groups){
+    standingsList.innerHTML = groups.map(g => `
+      <div class="group-header">${g.name}</div>
+      ${g.rows.map(rowHTML).join('')}
+    `).join('');
   }
 
   async function loadStandings(leagueCode, leagueLabel){
@@ -1441,30 +1458,57 @@
       if(!res.ok) throw new Error('standings fetch failed');
       const data = await res.json();
       const groups = data?.children;
-      let entries;
+
       if(groups && groups.length > 1){
-        // Tournament with multiple groups (e.g. World Cup Group A, B, C...)
-        // Combine every group's teams into one list instead of just the first.
-        entries = groups.flatMap(g => (g?.standings?.entries || []).map(e => ({
-          ...e, groupName: g?.name || g?.abbreviation || ''
-        })));
-      } else {
-        entries = data?.children?.[0]?.standings?.entries || data?.standings?.[0]?.entries;
+        // Tournament with multiple groups (e.g. World Cup Group A, B, C... or
+        // Champions League group/league phase). Build one table PER group
+        // instead of merging every team into a single flat list.
+        const builtGroups = groups
+          .map(g => {
+            const entries = g?.standings?.entries || [];
+            const rows = entries.map((e,i)=>{
+              const st = Object.fromEntries((e.stats||[]).map(s=>[s.name, s.value]));
+              const gd = st.pointDifferential ?? st.goalDifferential ?? 0;
+              return {
+                pos: i+1,
+                name: e.team?.displayName || e.team?.name || 'Unknown',
+                color: e.team?.color ? `#${e.team.color}` : '#33D17E',
+                p: st.gamesPlayed ?? '–',
+                gd: gd > 0 ? `+${gd}` : `${gd}`,
+                pts: st.points ?? '–',
+              };
+            });
+            return { name: g?.name || g?.abbreviation || 'Group', rows };
+          })
+          .filter(g => g.rows.length);
+
+        if(!builtGroups.length) throw new Error('no standings data');
+
+        lastStandingsGroups = builtGroups;
+        lastStandingsRows = null;
+        renderStandingsGroups(builtGroups);
+        const link = document.getElementById('viewFullTable');
+        if(link) link.innerHTML = ''; // all groups are already shown in full, no toggle needed
+        setSectionLabel('standingsList', `(${leagueLabel} — all groups)`);
+        return;
       }
+
+      // Single-table league (Premier League, La Liga, etc.)
+      const entries = data?.children?.[0]?.standings?.entries || data?.standings?.[0]?.entries;
       if(!entries || !entries.length) throw new Error('no standings data');
       const allRows = entries.map((e,i)=>{
         const st = Object.fromEntries((e.stats||[]).map(s=>[s.name, s.value]));
         const gd = st.pointDifferential ?? st.goalDifferential ?? 0;
-        const groupTag = e.groupName ? ` <span style="color:var(--muted); font-weight:400;">(${e.groupName})</span>` : '';
         return {
           pos: i+1,
-          name: (e.team?.displayName || e.team?.name || 'Unknown') + groupTag,
+          name: e.team?.displayName || e.team?.name || 'Unknown',
           color: e.team?.color ? `#${e.team.color}` : '#33D17E',
           p: st.gamesPlayed ?? '–',
           gd: gd > 0 ? `+${gd}` : `${gd}`,
           pts: st.points ?? '–',
         };
       });
+      lastStandingsGroups = null;
       lastStandingsRows = allRows;
       standingsExpanded = false;
       renderStandingsRows(allRows.slice(0,5));
@@ -1476,13 +1520,37 @@
     }
   }
 
+  function setScorersError(msg){
+    const card = document.getElementById('scorersList')?.closest('.card');
+    let hint = card?.querySelector('.standings-error');
+    if(!hint && card){
+      hint = document.createElement('div');
+      hint.className = 'standings-error';
+      card.appendChild(hint);
+    }
+    if(hint) hint.textContent = msg ? `Live scorers unavailable: ${msg}` : '';
+  }
+
   async function loadTopScorers(leagueCode, leagueLabel){
     const apiId = API_FOOTBALL_LEAGUE_IDS[leagueCode];
     if(!apiId) return; // no API-Football mapping for this league — leave demo data
     try{
       const res = await fetch(`/api/scorers?league=${apiId}`);
-      if(!res.ok) throw new Error('scorers fetch failed');
-      const data = await res.json();
+      // Always parse the body — our own /api/scorers returns a JSON error
+      // payload (with the upstream API-Football message) even on failure,
+      // which is exactly what you need to see WHY the key isn't working.
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok){
+        console.warn('Top scorers live fetch failed:', data.error || res.status, data.details || '');
+        setScorersError(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      if(data?._debug?.errors && Object.keys(data._debug.errors).length){
+        // API-Football often returns HTTP 200 with an empty response[] plus
+        // an errors{} object (bad key, wrong plan, quota, etc.) — surface it.
+        console.warn('API-Football reported errors:', data._debug.errors);
+        setScorersError(Object.values(data._debug.errors).join(', '));
+      }
       if(!data.scorers || !data.scorers.length) throw new Error('no scorer data');
       scorersList.innerHTML = data.scorers.map((s,i)=>`<div class="scorerrow">
         <div class="rank">${i+1}</div>
@@ -1491,8 +1559,10 @@
         <div class="goals">${s.goals}</div>
       </div>`).join('');
       setSectionLabel('scorersList', `(${leagueLabel})`);
+      if(!(data?._debug?.errors && Object.keys(data._debug.errors).length)) setScorersError('');
     }catch(err){
       console.warn('Top scorers live fetch failed, keeping demo data', err);
+      setScorersError(err.message);
     }
   }
 
@@ -1501,7 +1571,7 @@
   loadTopScorers('eng.1', 'Premier League');
 
   document.getElementById('viewFullTable')?.addEventListener('click', ()=>{
-    if(!lastStandingsRows) return; // real data not loaded yet
+    if(!lastStandingsRows) return; // grouped tournaments already show everything, nothing to expand
     standingsExpanded = !standingsExpanded;
     renderStandingsRows(standingsExpanded ? lastStandingsRows : lastStandingsRows.slice(0,5));
     const link = document.getElementById('viewFullTable');
