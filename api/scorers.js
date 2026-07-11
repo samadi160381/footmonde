@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing "league" query param' });
   }
 
-  const season = req.query.season || new Date().getFullYear();
+  const season = req.query.season || 2023; // free-trial plans only cover 2022–2024
   const apiKey = process.env.APIFOOTBALL_KEY;
 
   if (!apiKey) {
